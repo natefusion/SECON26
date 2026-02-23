@@ -1,4 +1,14 @@
 dependencies:
+  espressif/bdc_motor:
+    component_hash: 9292b605cfd390ff62225caa93e02700b86377e6a3156620192e4876dcf87b27
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.1.0
   espressif/esp32-camera:
     component_hash: f0a608b109935a5389221eee5090ec61f51b0df1a0749531fe59d33aaf263233
     dependencies:
@@ -26,10 +36,11 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 5.5.2
+    version: 5.5.1
 direct_dependencies:
+- espressif/bdc_motor
 - espressif/esp32-camera
 - idf
-manifest_hash: bb2e04f03fc22fe03978f48d3f4f74ead5a698f8aba43ac46cd3353f373a000c
+manifest_hash: 87e0f96be68b3336632da802f9b02b90d4c7520ce93071301511ee1ef971281c
 target: esp32s3
 version: 2.0.0
