@@ -49,7 +49,7 @@ void retrieve(void) {
 
 }
 
-static void game_task(void) {
+static void game_task(void*) {
     while (true) {
         switch (current_state) {
         case Game_Waiting:
@@ -65,9 +65,11 @@ static void game_task(void) {
             retrieve();
             break;
         }
+
+        current_state = Game_Waiting;
     }
 }
 
 void game_start(void) {
-    // start the task in a thread
+    xTaskCreate(game_task, "game_thread", 4096, NULL, 5, NULL);
 }

@@ -1,6 +1,8 @@
 #include "../Camera/camera.h"
 #include "esp_log.h"
 
+#include <Game_Controller/game_controller.h>
+
 #include "lwip/err.h"
 #include "lwip/sockets.h"
 #include "lwip/sys.h"
@@ -46,15 +48,15 @@ void command_image(int sock) {
 };
 
 void command_launch(int sock) {
-
+    game_state_change_maybe(Game_Launch);
 }
 
 void command_retrieve(int sock) {
-
+    game_state_change_maybe(Game_Retrieve);
 }
 
 void command_transmission_codes(int sock) {
-
+    game_state_change_maybe(Game_Send_Codes);
 }
 
 void command_pos(int sock) {
