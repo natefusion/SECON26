@@ -5,11 +5,6 @@
 static enum Game_State current_state = Game_Waiting;
 
 bool game_state_change_maybe(enum Game_State new_state) {
-    if (new_state == Game_STOP) {
-        current_state = Game_STOP;
-        return true;
-    }
-    
     if (current_state == Game_Waiting) {
         current_state = new_state;
         return true;
@@ -68,9 +63,6 @@ static void game_task(void) {
             break;
         case Game_Retrieve:
             retrieve();
-            break;
-        case Game_STOP:
-            // flight controller emergency stop
             break;
         }
     }
