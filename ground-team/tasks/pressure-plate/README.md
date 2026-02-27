@@ -1,37 +1,17 @@
 # pressure-plate
 
-An embedded C project managed with cman.
+*Problem* The ground robot is tasked with removing a duck that is on a pressure plate, in order to power the antenna. This can be done by using two servo motors using PWM signals. 
+
+What needs to be done:
+Make the vertical motor directly perpendicular to the motor, to allow the horizontal motor to have a full range of motion. Move the horizontal arm to the 
 
 ## Prerequisites
 
-Install the ARM embedded toolchain:
-
-```bash
-# macOS
-brew install arm-none-eabi-gcc
-
-# Ubuntu/Debian
-sudo apt-get install gcc-arm-none-eabi
-
-# Fedora
-sudo dnf install gcc-arm-none-eabi
-```
-
-## Build
-
-```bash
-cman build
-```
-
-## Configuration
-
-Update `cman.toml` to match your target:
-- Change `compiler` for different architectures (e.g., `riscv64-unknown-elf-gcc`)
-- Update `cflags` with appropriate CPU flags (`-mcpu`, `-march`, etc.)
-- Set `ldflags` for linker scripts and libraries
 
 
-*code*
-''
-while(loop)
-''
+``
+while(true)
+{
+Should I use java?
+}
+``
