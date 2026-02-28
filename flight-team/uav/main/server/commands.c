@@ -66,7 +66,7 @@ void command_transmission_codes(int sock) {
 
 void command_pos(int sock) {
     float pos[4];
-    int length = recv(sock, &pos, sizeof(pos), MSG_WAITALL);
+    int length = recv(sock, pos, sizeof(pos), MSG_WAITALL);
     if (length == sizeof(pos)) game_set_pos_data(pos[0], pos[1], pos[2], pos[3]);
     else ESP_LOGE("TCP_SERVER", "Error occurred while getting position: errno %d", errno);
 }
