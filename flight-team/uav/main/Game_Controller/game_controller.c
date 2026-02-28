@@ -8,7 +8,7 @@
 
 static enum Game_State _current_state = Game_Waiting;
 static IRtx_t _ir;
-static ir_nec_scan_code_t _ir_codes = {0};
+static ir_nec_scan_code_t _ir_codes[4] = {0};
 
 static struct {
     float uav_x;
@@ -30,8 +30,10 @@ bool game_state_change_maybe(enum Game_State new_state) {
     }
 }
 
-void game_set_ir_code(ir_nec_scan_code_t code) {
-    _ir_codes = code;
+void game_set_ir_codes(ir_nec_scan_code_t codes[4]) {
+    for (int i = 0; i < 4; ++i) {
+        _ir_codes[i] = codes[i];
+    }
 }
 
 void game_set_pos_data(float uav_x, float uav_y, float bot_x, float bot_y) {
@@ -60,7 +62,7 @@ static void launch(void) {
 static void send_codes(void) {
     rotate_by(360.0f);
     while (!at_desired_position()) {
-        IRtx_transmit(&_ir, _ir_codes);
+        for (int i = 0; i < 4; ++i) IRtx_transmit(&_ir, _ir_codes[i]);
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
 }

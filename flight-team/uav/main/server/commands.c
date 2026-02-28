@@ -57,18 +57,21 @@ void command_retrieve(int sock) {
 }
 
 void command_transmission_codes(int sock) {
-    ir_nec_scan_code_t code;
-    int length = recv(sock, &code, sizeof(code), MSG_WAITALL);
-    if (length == sizeof(code)) game_set_ir_code((ir_nec_scan_code_t) {.address=0, .command=0});
-    else ESP_LOGE("TCP_SERVER", "Error occurred while getting position: errno %d", errno);
-    game_state_change_maybe(Game_Send_Codes);
+    ir_nec_scan_code_t codes[4];
+    int length = recv(sock, codes, sizeof(codes), MSG_WAITALL);
+    if (length == sizeof(codes)) {
+        game_set_ir_codes(codes);
+        game_state_change_maybe(Game_Send_Codes);
+    } else {
+        ESP_LOGE(TAG, "Error occurred while getting transmission codes: errno %d", errno);
+    }
 }
 
 void command_pos(int sock) {
     float pos[4];
     int length = recv(sock, pos, sizeof(pos), MSG_WAITALL);
     if (length == sizeof(pos)) game_set_pos_data(pos[0], pos[1], pos[2], pos[3]);
-    else ESP_LOGE("TCP_SERVER", "Error occurred while getting position: errno %d", errno);
+    else ESP_LOGE(TAG, "Error occurred while getting position: errno %d", errno);
 }
 
 void command_stop(int sock) {
