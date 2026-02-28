@@ -13,6 +13,8 @@
 // arbitrary
 #define GYRO_ID 55
 
+#define METER_PER_INCH 0.0254f
+
 struct Pid {
     float kp;
     float ki;
@@ -26,9 +28,12 @@ struct Pid {
 };
 
 enum Pid_Type {
-    Pitch, Yaw, Roll, Height, Num_Pid_Types
+    Pitch, Yaw, Roll, Height, X_Pos, Y_Pos, Num_Pid_Types
 };
 
+static float _x_pos_meter = 0.0f;
+static float _y_pos_meter = 0.0f;
+static float _height_meter = 0.0f;
 static float _throttle = 0.0f;
 static bool _should_run = true;
 
@@ -50,10 +55,19 @@ static struct Pid _pid[Num_Pid_Types] = {
     },
     [Height] = (struct Pid) {
     },
+    [X_Pos] = (struct Pid) {
+    },
+    [Y_Pos] = (struct Pid) {
+    },
 };
 
 static inline void clamp(float *x, float y) {
     if (*x < -y) *x = -y;
+    if (*x > y) *x = y;
+}
+
+static inline void clamp0(float *x, float y) {
+    if (*x < 0.0f) *x = 0.0f;
     if (*x > y) *x = y;
 }
 
@@ -94,22 +108,6 @@ static float update_pid_rate(struct Pid *p, float rate) {
     return output;
 }
 
-void set_pitch(float rad) {
-    _pid[Pitch].setpoint = rad;
-}
-
-void set_roll(float rad) {
-    _pid[Roll].setpoint = rad;
-}
-
-void set_yaw(float rad) {
-    _pid[Yaw].setpoint = rad;
-}
-
-void set_throttle(float t) {
-    _throttle = t;
-}
-
 static void flight_task(void*) {
     while (_should_run) {
         sensors_event_t ev;
@@ -120,6 +118,15 @@ static void flight_task(void*) {
         float rx = ev.gyro.x;
         float ry = ev.gyro.y;
         float rz = ev.gyro.z;
+
+        _throttle = update_pid_rate(&_pid[Height], ev.acceleration.z); // is this right?
+        clamp0(&_throttle, 0.5f);
+
+        _pid[Pitch].setpoint = update_pid_rate(&_pid[X_Pos], ev.acceleration.x); // is this right?
+        clamp(&_pid[Pitch].setpoint, 0.2f);
+        
+        _pid[Roll].setpoint = update_pid_rate(&_pid[Y_Pos], ev.acceleration.y); // is this right?
+        clamp(&_pid[Roll].setpoint, 0.2f);
         
         float p = update_pid_angle(&_pid[Pitch], ax, rx);
         float r = update_pid_angle(&_pid[Roll], ay, ry);
@@ -132,6 +139,9 @@ static void flight_task(void*) {
         set_motor_speed_pcnt(_mh[2], t - p + r + y); // back right
         set_motor_speed_pcnt(_mh[3], t - p - r - y); // back left
 
+        
+        _height_meter += ev.acceleration.z * DT * DT / 2.0f;
+
         vTaskDelay(SLEEP_TIME / portTICK_PERIOD_MS);    
     }
 
@@ -139,6 +149,24 @@ static void flight_task(void*) {
     set_motor_speed_pcnt(_mh[1], 0); // front left
     set_motor_speed_pcnt(_mh[2], 0); // back right
     set_motor_speed_pcnt(_mh[3], 0); // back left
+}
+
+void reset_height(float offset_inches_z) {
+    _height_meter = offset_inches_z * METER_PER_INCH;
+}
+
+void reset_pos(float offset_inches_x, float offset_inches_y) {
+    _x_pos_meter = offset_inches_x * METER_PER_INCH;
+    _y_pos_meter = offset_inches_y * METER_PER_INCH;
+}
+
+void change_height_by(float inches_z) {
+    _pid[Height].setpoint += inches_z * METER_PER_INCH;
+}
+
+void change_pos_by(float inches_x, float inches_y) {
+    _pid[X_Pos].setpoint += inches_x * METER_PER_INCH;
+    _pid[Y_Pos].setpoint += inches_y * METER_PER_INCH;
 }
 
 void emergency_stop(void) {
