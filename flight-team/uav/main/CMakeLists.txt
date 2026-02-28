@@ -8,5 +8,6 @@ idf_component_register(SRCS
   "Wifi/wifi.c"
   "Motor/motor.c"
   "Game_Controller/game_controller.c"
+  "Flight_Controller/flight_controller.c"
   INCLUDE_DIRS "."
   REQUIRES "esp_timer esp_wifi nvs_flash")
