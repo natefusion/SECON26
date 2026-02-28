@@ -202,7 +202,7 @@ bool flight_controller_init(void) {
 
     for (int i = 0; i < 4; ++i) _mh[i] = init_motor(&_cfg[i]);
 
-    xTaskCreate(flight_task, "flight_controller", 4096, NULL, 0, NULL);
+    xTaskCreate(flight_task, "flight_controller", 4096, NULL, configMAX_PRIORITIES-1, NULL);
 
     return true;
 }
