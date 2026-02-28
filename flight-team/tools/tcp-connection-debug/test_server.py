@@ -8,7 +8,7 @@ IMAGE_PATH = './UAV_Computer_Vision/cool_duck_images/IMG_20251101_181840.jpg'
 def send_image(conn, image_path):
     with open(image_path, 'rb') as f:
         data = f.read()
-        conn.send(len(data).to_bytes(8, byteorder='big'))
+        conn.send(len(data).to_bytes(4, byteorder='big'))
         conn.sendall(data)
     print("Image sent.")
 

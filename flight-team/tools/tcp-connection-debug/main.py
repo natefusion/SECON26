@@ -1,3 +1,5 @@
+import os
+import time
 import UAV_Computer_Vision.field_detection as fd
 import cv2 as cv
 import io
@@ -19,12 +21,16 @@ logging.basicConfig(
 
 output_image_file = Path("./output.jpg")
 
+REQUEST_DELAY = 2000
+
 
 class MessageType(Enum):
     CAMERA_DATA = 1
-
-    OK = 11
-    ERROR = 12
+    LAUNCH = 2
+    RETRIEVE = 3
+    TRANSMISSION_CODES = 4
+    POS = 5
+    STOP = 6
 
 
 class DebugClient:
@@ -36,21 +42,20 @@ class DebugClient:
 
     def connect(self):
         self.sock = socket.create_connection((self.host, self.port))
-        logging.info(f"Connected to {self.host}:{self.port}")
+        logging.debug(f"Connected to {self.host}:{self.port}")
 
     def close(self):
         if not self.sock:
             return
 
         self.sock.close()
-        logging.info(f"Connection to {self.host}:{self.port} closed")
+        logging.debug(f"Connection to {self.host}:{self.port} closed")
 
     def register_handler(self, msg_type: MessageType, handler: callable):
         self.handlers[msg_type] = handler
 
-    def send_request(self, msg_type: MessageType, payload: bytes = 0):
+    def send_request(self, msg_type: MessageType):
         self.sock.sendall(bytes(msg_type.value))
-        self.sock.sendall(payload)
 
     def receive_n_bytes(self, n: int) -> bytes:
         data = b""
@@ -74,9 +79,9 @@ class DebugClient:
         logging.error("Error response from server!!!!")
         return -1
 
-    def handle(self, msg_type: MessageType, payload: bytes = 0):
+    def handle(self, msg_type: MessageType):
         handler = self.handlers.get(msg_type)
-        handler(payload)  # man I love python
+        handler(self)  # man I love python
 
 
 def downscale_image(image: cv.UMat) -> cv.UMat:
@@ -87,27 +92,78 @@ def downscale_image(image: cv.UMat) -> cv.UMat:
     return np.array(img)
 
 
-def handle_camera(payload: bytes = 0):
-    try:
-        with open(output_image_file, "wb") as file:
-            file.write(payload)
-            logging.info(f"Camera output saved to {output_image_file}")
-    except Exception as e:
-        logging.error(f"Something bad happened :( {e}")
+def handle_camera(client: DebugClient):
+    client.send_request(MessageType.CAMERA_DATA)
+    logging.debug("getting image")
+    size = int.from_bytes(client.receive_n_bytes(4))
+    payload = client.receive_n_bytes(size)
+
+    image = np.frombuffer(payload, dtype=np.uint8)
+    image_decoded = cv.imdecode(image, cv.IMREAD_COLOR)
+    image_downscaled = downscale_image(image_decoded)
+
+    computer_vision_result = fd.recompute_display(image_downscaled, image_decoded)
+    cv.imwrite(output_image_file, computer_vision_result)
+
+    logging.info(f"Image saved to {output_image_file}")
+
+
+def handle_launch(client: DebugClient):
+    client.send_request(MessageType.LAUNCH)
+    #something else 
+
+
+def handle_retreive(client: DebugClient):
+    client.send_request(MessageType.RETRIEVE)
+    #something else 
+
+def handle_transmission_codes(client: DebugClient):
+    client.send_request(MessageType.TRANSMISSION_CODES)
+    #something else 
+
+
+def handle_pos(client: DebugClient):
+    client.send_request(MessageType.POS)
+    #something else 
+
+
+def get_that_stuff(client: DebugClient):
+    while True:
+        client.connect()
+        logging.debug("Starting Camera")
+        client.handle(MessageType.CAMERA_DATA)
+        client.close()
+
+        client.connect()
+        logging.debug("Starting Launch")
+        client.handle(MessageType.LAUNCH)
+        client.close()
+
+        client.connect()
+        logging.debug("Starting Retreive")
+        client.handle(MessageType.RETRIEVE)
+        client.close()
+
+        client.connect()
+        logging.debug("Starting Transmission Codes")
+        client.handle(MessageType.TRANSMISSION_CODES)
+        client.close()
+
+        client.connect()
+        logging.debug("Starting Pos")
+        client.handle(MessageType.POS)
+        client.close()
+
+        time.sleep(REQUEST_DELAY)
 
 
 if __name__ == '__main__':
     client = DebugClient('localhost', 5000)
 
     client.register_handler(MessageType.CAMERA_DATA, handle_camera)
+    client.register_handler(MessageType.LAUNCH, handle_launch)
+    client.register_handler(MessageType.RETRIEVE, handle_retreive)
+    client.register_handler(MessageType.TRANSMISSION_CODES, handle_transmission_codes)
+    client.register_handler(MessageType.POS, handle_pos)
 
-    client.connect()
-    client.send_request(MessageType.CAMERA_DATA,
-                        bytes(MessageType.CAMERA_DATA.value))
-
-    size = int.from_bytes(client.receive_n_bytes(8))
-    payload = client.receive_n_bytes(size)
-
-    client.handle(MessageType.CAMERA_DATA, payload)
-
-    client.close()
+    get_that_stuff(client)

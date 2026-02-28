@@ -2,6 +2,7 @@ cool_duck_images/
 downscaled_duck_images/
 venv/
 data.txt
+pyproject.toml
 
 *.jpg
 
