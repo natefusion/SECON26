@@ -15,8 +15,8 @@ static struct {
     float uav_y;
     float bot_x;
     float bot_y;
-    int prev_frame;
-    int frame;
+    bool prev;
+    bool curr;
 } _pos = {0};
 
 
@@ -39,41 +39,49 @@ void game_set_pos_data(float uav_x, float uav_y, float bot_x, float bot_y) {
     _pos.uav_y = uav_y;
     _pos.bot_x = bot_x;
     _pos.bot_y = bot_y;
-    _pos.prev_frame = _pos.frame;
-    _pos.frame += 1;
+    _pos.curr = true;
+    _pos.prev = false;
 }
 
 static void launch(void) {
+    reset_height(0.0f);
     change_height_by(15.0f);
     while (!at_desired_position()) {
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        vTaskDelay(125 / portTICK_PERIOD_MS);
     }
 
+    reset_pos(0.0f, 0.0f);
     change_pos_by(10.6f, 10.6f);
     while (!at_desired_position()) {
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        vTaskDelay(125 / portTICK_PERIOD_MS);
     }
 }
 
 static void send_codes(void) {
-    rotate_by(60.0f);
+    rotate_by(360.0f);
     while (!at_desired_position()) {
+        IRtx_transmit(&_ir, _ir_codes);
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
-    IRtx_transmit(&_ir, _ir_codes);
 }
 
 void retrieve(void) {
     do {
-        if (_pos.prev_frame == _pos.frame) continue;
-        
-        // update horizontal setpoint
-        vTaskDelay(20 / portTICK_PERIOD_MS); // what number is good?
-    } while (true/*not at setpoint*/);
+        if (_pos.prev == _pos.curr) continue;
+        _pos.prev = _pos.curr = false;
 
-    // set height setpoint
-    while (true/*not at setpoint*/) {
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        float dx = _pos.bot_x - _pos.uav_x;
+        float dy = _pos.bot_y - _pos.uav_y;
+
+        reset_pos(_pos.uav_x, _pos.uav_y);
+        change_pos_by(dx, dy);
+        
+        vTaskDelay(50 / portTICK_PERIOD_MS); // what number is good?
+    } while (!at_desired_position());
+
+    return_to_last_height();
+    while (!at_desired_position()) {
+        vTaskDelay(125 / portTICK_PERIOD_MS);
     }
 }
 

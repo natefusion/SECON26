@@ -144,8 +144,9 @@ static void flight_task(void*) {
         set_motor_speed_pcnt(_mh[2], t - p + r + y); // back right
         set_motor_speed_pcnt(_mh[3], t - p - r - y); // back left
 
-        
         _height_meter += ev.acceleration.z * DT * DT / 2.0f;
+        _x_pos_meter += ev.acceleration.x * DT * DT / 2.0f;
+        _y_pos_meter += ev.acceleration.y * DT * DT / 2.0f;
 
         vTaskDelay(SLEEP_TIME / portTICK_PERIOD_MS);    
     }
@@ -158,15 +159,22 @@ static void flight_task(void*) {
 
 void reset_height(float offset_inches_z) {
     _height_meter = offset_inches_z * METER_PER_INCH;
+    _pid[Height].setpoint = _height_meter;
 }
 
 void reset_pos(float offset_inches_x, float offset_inches_y) {
     _x_pos_meter = offset_inches_x * METER_PER_INCH;
     _y_pos_meter = offset_inches_y * METER_PER_INCH;
+    _pid[X_Pos].setpoint = _x_pos_meter;
+    _pid[Y_Pos].setpoint = _y_pos_meter;
 }
 
 void change_height_by(float inches_z) {
     _pid[Height].setpoint += inches_z * METER_PER_INCH;
+}
+
+void return_to_last_height(void) {
+    _pid[Height].setpoint = 0.0f;
 }
 
 void change_pos_by(float inches_x, float inches_y) {
