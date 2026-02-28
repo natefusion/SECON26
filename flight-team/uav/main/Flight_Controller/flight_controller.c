@@ -1,6 +1,7 @@
 #include "flight_controller.h"
 
 #include <freertos/FreeRTOS.h>
+#include <math.h>
 
 #include <Motor/motor.h>
 #include <Gyro/bno055.h>
@@ -9,11 +10,13 @@
 #define SLEEP_TIME (DT*1000)
 
 #define MIN_THROTTLE 0.06f
+#define ACCEPTABLE_ERROR 0.1f
 
 // arbitrary
 #define GYRO_ID 55
 
 #define METER_PER_INCH 0.0254f
+#define RAD_PER_DEG 3.141592654f / 180.0f;
 
 struct Pid {
     float kp;
@@ -85,6 +88,8 @@ static float update_pid_angle(struct Pid *p, float angle, float rate) {
 
     float output = p->kp*err + p->ki*p->integral - p->kd*derivative;
     clamp(&output, 1.0f);
+
+    p->prev_err = err;
 
     return output;
 }
@@ -167,6 +172,19 @@ void change_height_by(float inches_z) {
 void change_pos_by(float inches_x, float inches_y) {
     _pid[X_Pos].setpoint += inches_x * METER_PER_INCH;
     _pid[Y_Pos].setpoint += inches_y * METER_PER_INCH;
+}
+
+void rotate_by(float degrees) {
+    _pid[Yaw].setpoint += degrees * RAD_PER_DEG;
+}
+
+bool at_desired_position(void) {
+    float e1 = fabsf(_pid[X_Pos].prev_err) < ACCEPTABLE_ERROR;
+    float e2 = fabsf(_pid[Y_Pos].prev_err) < ACCEPTABLE_ERROR;
+    float e3 = fabsf(_pid[Height].prev_err) < ACCEPTABLE_ERROR;
+    float e4 = fabsf(_pid[Yaw].prev_err) < ACCEPTABLE_ERROR;
+
+    return e1 && e2 && e3 && e4;
 }
 
 void emergency_stop(void) {

@@ -1,5 +1,7 @@
 #include "game_controller.h"
 
+#include <Flight_Controller/flight_controller.h>
+
 #include "freertos/FreeRTOS.h"
 
 #define IR_GPIO 8
@@ -42,20 +44,20 @@ void game_set_pos_data(float uav_x, float uav_y, float bot_x, float bot_y) {
 }
 
 static void launch(void) {
-    // set height setpoint
-    while (true/*not at setpoint*/) {
+    change_height_by(15.0f);
+    while (!at_desired_position()) {
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
 
-    // set horizontal setpoint
-    while (true/*not at setpoint*/) {
+    change_pos_by(10.6f, 10.6f);
+    while (!at_desired_position()) {
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
 }
 
 static void send_codes(void) {
-    // set yaw setpoint
-    while (true/*not at setpoint*/) {
+    rotate_by(60.0f);
+    while (!at_desired_position()) {
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
     IRtx_transmit(&_ir, _ir_codes);
