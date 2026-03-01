@@ -35,6 +35,8 @@ enum Pid_Type {
 };
 
 // meter/second
+static float _x_vel = 0.0f;
+static float _y_vel = 0.0f;
 static float _z_vel = 0.0f;
 
 // meter
@@ -172,11 +174,13 @@ static void flight_task(void* data) {
         float y_acc = accel_ev.acceleration.y;
         float z_acc = accel_ev.acceleration.z;
 
-        _z_vel += z_acc * DT;
+        _x_pos += _x_vel*DT + x_acc*DT*DT/2.0f;
+        _y_pos += _y_vel*DT + y_acc*DT*DT/2.0f;
+        _z_pos += _z_vel*DT + z_acc*DT*DT/2.0f;
 
-        _x_pos += x_acc * DT * DT / 2.0f;
-        _y_pos += y_acc * DT * DT / 2.0f;
-        _z_pos += z_acc * DT * DT / 2.0f;
+	    _x_vel += x_acc*DT;
+	    _y_vel += y_acc*DT;
+        _z_vel += z_acc*DT;
 
         _pid[Pitch].setpoint = update_pid_rate(&_pid[X_Pos], _x_pos);
         _pid[Roll].setpoint = update_pid_rate(&_pid[Y_Pos], _y_pos);
