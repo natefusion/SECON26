@@ -7,7 +7,7 @@
 #include <Gyro/bno055.h>
 
 #define DT (0.01f)
-#define SLEEP_TIME (DT*1000)
+#define SLEEP_TIME (DT*1000.0f)
 
 #define MIN_THROTTLE 0.06f
 #define ACCEPTABLE_ERROR 0.1f
@@ -15,8 +15,8 @@
 // arbitrary
 #define GYRO_ID 55
 
-#define METER_PER_INCH 0.0254f
-#define RAD_PER_DEG 3.141592654f / 180.0f;
+#define METER_PER_INCH (0.0254f)
+#define RAD_PER_DEG (3.141592654f / 180.0f)
 
 struct Pid {
     float kp;
@@ -31,12 +31,17 @@ struct Pid {
 };
 
 enum Pid_Type {
-    Pitch, Yaw, Roll, Height, X_Pos, Y_Pos, Num_Pid_Types
+    Roll, Pitch, Yaw, Z_Vel, X_Pos, Y_Pos, Z_Pos, Num_Pid_Types
 };
 
-static float _x_pos_meter = 0.0f;
-static float _y_pos_meter = 0.0f;
-static float _height_meter = 0.0f;
+// meter/second
+static float _z_vel = 0.0f;
+
+// meter
+static float _x_pos = 0.0f;
+static float _y_pos = 0.0f;
+static float _z_pos = 0.0f;
+
 static float _throttle = 0.0f;
 static bool _should_run = true;
 
@@ -56,11 +61,13 @@ static struct Pid _pid[Num_Pid_Types] = {
     },
     [Yaw] = (struct Pid){
     },
-    [Height] = (struct Pid) {
+    [Z_Vel] = (struct Pid) {
     },
     [X_Pos] = (struct Pid) {
     },
     [Y_Pos] = (struct Pid) {
+    },
+    [Z_Pos] = (struct Pid) {
     },
 };
 
@@ -113,40 +120,71 @@ static float update_pid_rate(struct Pid *p, float rate) {
     return output;
 }
 
-static void flight_task(void*) {
+static float update_pid_throttle(struct Pid *p, float rate) {
+    float err = p->setpoint - rate;
+
+    p->integral += err * DT;
+    clamp(&p->integral, p->integral_limit);
+
+    float derivative = (err - p->prev_err) / DT;
+    float output = p->kp*err + p->ki*p->integral - p->kd*derivative;
+    clamp0(&output, 1.0f);
+
+    p->prev_err = err;
+
+    return output;
+}
+
+static void flight_task(void* data) {
     while (_should_run) {
-        sensors_event_t ev;
-        bno055_getEvent1(&ev);
-        // ensure everything is in radians pls
-        float ax = ev.orientation.x;
-        float ay = ev.orientation.y;
-        float rx = ev.gyro.x;
-        float ry = ev.gyro.y;
-        float rz = ev.gyro.z;
-
-        _throttle = update_pid_rate(&_pid[Height], ev.acceleration.z); // is this right?
-        clamp0(&_throttle, 0.5f);
-
-        _pid[Pitch].setpoint = update_pid_rate(&_pid[X_Pos], ev.acceleration.x); // is this right?
-        clamp(&_pid[Pitch].setpoint, 0.2f);
+        /*
+          On the Chip: "BNO055" is the front
+          x: forward-backward; roll (around this axis)
+          y: left-right; pitch (around this axis)
+          z: up-down; yaw (around this axis)
+         */
+        sensors_event_t orient_ev;
+        sensors_event_t gyro_ev;
+        sensors_event_t accel_ev;
+        bno055_getEvent2(&orient_ev, VECTOR_EULER); // degree
+        bno055_getEvent2(&gyro_ev, VECTOR_GYROSCOPE); // radians/second
+        bno055_getEvent2(&accel_ev, VECTOR_LINEARACCEL); // m/s^2 (acceleration - gravity)
         
-        _pid[Roll].setpoint = update_pid_rate(&_pid[Y_Pos], ev.acceleration.y); // is this right?
-        clamp(&_pid[Roll].setpoint, 0.2f);
-        
-        float p = update_pid_angle(&_pid[Pitch], ax, rx);
-        float r = update_pid_angle(&_pid[Roll], ay, ry);
-        float y = update_pid_rate(&_pid[Yaw], rz);
-        float t = _throttle;
+        float roll = orient_ev.orientation.roll * RAD_PER_DEG;
+        float pitch = orient_ev.orientation.pitch * RAD_PER_DEG;
+
+        float roll_rate = gyro_ev.gyro.roll;
+        float pitch_rate = gyro_ev.gyro.pitch;
+        float yaw_rate = gyro_ev.gyro.heading;
+
+        float x_acc = accel_ev.acceleration.x;
+        float y_acc = accel_ev.acceleration.y;
+        float z_acc = accel_ev.acceleration.z;
+
+        _z_vel += z_acc * DT;
+
+        _x_pos += x_acc * DT * DT / 2.0f;
+        _y_pos += y_acc * DT * DT / 2.0f;
+        _z_pos += z_acc * DT * DT / 2.0f;
+
+        _pid[Pitch].setpoint = update_pid_rate(&_pid[X_Pos], _x_pos);
+        _pid[Roll].setpoint = update_pid_rate(&_pid[Y_Pos], _y_pos);
+        _pid[Z_Vel].setpoint = update_pid_rate(&_pid[Z_Pos], _z_pos); // maybe just have this control the throttle directly
+        // find some good values
+        clamp(&_pid[Pitch].setpoint, 0.3);
+        clamp(&_pid[Roll].setpoint, 0.3);
+        clamp(&_pid[Z_Vel].setpoint, 0.03);
+
+        float t = update_pid_throttle(&_pid[Z_Vel], _z_vel); _throttle = t;
+        float r = update_pid_angle(&_pid[Roll], roll, roll_rate);
+        float p = update_pid_angle(&_pid[Pitch], pitch, pitch_rate);
+        float y = update_pid_rate(&_pid[Yaw], yaw_rate);
 
         // ensure y signs are correct
         set_motor_speed_pcnt(_mh[0], t + p + r + y); // front right
         set_motor_speed_pcnt(_mh[1], t + p - r - y); // front left
         set_motor_speed_pcnt(_mh[2], t - p + r + y); // back right
         set_motor_speed_pcnt(_mh[3], t - p - r - y); // back left
-
-        _height_meter += ev.acceleration.z * DT * DT / 2.0f;
-        _x_pos_meter += ev.acceleration.x * DT * DT / 2.0f;
-        _y_pos_meter += ev.acceleration.y * DT * DT / 2.0f;
 
         vTaskDelay(SLEEP_TIME / portTICK_PERIOD_MS);    
     }
@@ -158,23 +196,23 @@ static void flight_task(void*) {
 }
 
 void reset_height(float offset_inches_z) {
-    _height_meter = offset_inches_z * METER_PER_INCH;
-    _pid[Height].setpoint = _height_meter;
+    _z_pos = offset_inches_z * METER_PER_INCH;
+    _pid[Z_Pos].setpoint = _z_pos;
 }
 
 void reset_pos(float offset_inches_x, float offset_inches_y) {
-    _x_pos_meter = offset_inches_x * METER_PER_INCH;
-    _y_pos_meter = offset_inches_y * METER_PER_INCH;
-    _pid[X_Pos].setpoint = _x_pos_meter;
-    _pid[Y_Pos].setpoint = _y_pos_meter;
+    _x_pos = offset_inches_x * METER_PER_INCH;
+    _y_pos = offset_inches_y * METER_PER_INCH;
+    _pid[X_Pos].setpoint = _x_pos;
+    _pid[Y_Pos].setpoint = _y_pos;
 }
 
 void change_height_by(float inches_z) {
-    _pid[Height].setpoint += inches_z * METER_PER_INCH;
+    _pid[Z_Pos].setpoint += inches_z * METER_PER_INCH;
 }
 
 void return_to_last_height(void) {
-    _pid[Height].setpoint = 0.0f;
+    _pid[Z_Pos].setpoint = 0.0f;
 }
 
 void change_pos_by(float inches_x, float inches_y) {
@@ -189,7 +227,7 @@ void rotate_by(float degrees) {
 bool at_desired_position(void) {
     float e1 = fabsf(_pid[X_Pos].prev_err) < ACCEPTABLE_ERROR;
     float e2 = fabsf(_pid[Y_Pos].prev_err) < ACCEPTABLE_ERROR;
-    float e3 = fabsf(_pid[Height].prev_err) < ACCEPTABLE_ERROR;
+    float e3 = fabsf(_pid[Z_Pos].prev_err) < ACCEPTABLE_ERROR;
     float e4 = fabsf(_pid[Yaw].prev_err) < ACCEPTABLE_ERROR;
 
     return e1 && e2 && e3 && e4;
