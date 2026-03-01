@@ -136,7 +136,18 @@ static float update_pid_throttle(struct Pid *p, float rate) {
 }
 
 static void flight_task(void* data) {
-    while (_should_run) {
+    while (true) {
+        if (!_should_run) {
+            set_motor_speed_pcnt(_mh[0], 0); // front right
+            set_motor_speed_pcnt(_mh[1], 0); // front left
+            set_motor_speed_pcnt(_mh[2], 0); // back right
+            set_motor_speed_pcnt(_mh[3], 0); // back left
+
+            do {
+                vTaskDelay(500 / portTICK_PERIOD_MS);
+          } while (!_should_run);
+        }
+
         /*
           On the Chip: "BNO055" is the front
           x: forward-backward; roll (around this axis)
@@ -188,11 +199,6 @@ static void flight_task(void* data) {
 
         vTaskDelay(SLEEP_TIME / portTICK_PERIOD_MS);    
     }
-
-    set_motor_speed_pcnt(_mh[0], 0); // front right
-    set_motor_speed_pcnt(_mh[1], 0); // front left
-    set_motor_speed_pcnt(_mh[2], 0); // back right
-    set_motor_speed_pcnt(_mh[3], 0); // back left
 }
 
 void reset_height(float offset_inches_z) {
